@@ -36,7 +36,7 @@ function ResultPanel() {
   const { score, level, formData } = result;
 
   const getRiskConfig = () => {
-    switch (level.toLowerCase()) {
+    switch ((level || "").toLowerCase()) {
       case "high":
         return {
           icon: "🔥",
@@ -51,6 +51,7 @@ function ResultPanel() {
           ]
         };
       case "moderate":
+      case "medium":
         return {
           icon: "⚡",
           gradient: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
@@ -63,6 +64,7 @@ function ResultPanel() {
             "📊 Weekly stress level self-check"
           ]
         };
+
       default:
         return {
           icon: "✅",

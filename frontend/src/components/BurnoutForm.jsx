@@ -2,22 +2,27 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./BurnoutForm.css";
 
+const BASE_API_URL = import.meta.env.VITE_API_URL || "https://workload-burnout.onrender.com";
+const PREDICT_URL = `${BASE_API_URL.replace(/\/+$/, "")}/predict`;
+
 function BurnoutForm() {
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
-    Age: "",
-    Gender: "",
-    WorkingHours: "",
-    SleepHours: "",
-    StressLevel: "",
-    WorkPressure: "",
-    MeetingsPerDay: "",
-    ExperienceYears: "",
-    Remote: "",
+    Age: "28",
+    Gender: "1",
+    WorkingHours: "45",
+    SleepHours: "6",
+    StressLevel: "7",
+    WorkPressure: "8",
+    MeetingsPerDay: "5",
+    ExperienceYears: "4",
+    Remote: "1",
   });
 
   const [loading, setLoading] = useState(false);
+  const [loadingStatus, setLoadingStatus] = useState("predicting");
+  const [errorMessage, setErrorMessage] = useState(null);
 
   const handleChange = (e) => {
     setFormData({
@@ -27,24 +32,50 @@ function BurnoutForm() {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
+    if (loading) return;
+
+    setErrorMessage(null);
     setLoading(true);
+    setLoadingStatus("predicting");
+
+    // Cold start notification timer (Render free tier wake-up)
+    const wakeTimer = setTimeout(() => {
+      setLoadingStatus("waking");
+    }, 6000);
+
+    // 40 second timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 40000);
 
     try {
-const response = await fetch("https://workload-burnout.onrender.com/predict", {
+      const response = await fetch(PREDICT_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(formData),
+        signal: controller.signal,
       });
 
+      clearTimeout(timeoutId);
+      clearTimeout(wakeTimer);
+
+      if (!response.ok) {
+        let serverErr = `Server returned status ${response.status}`;
+        try {
+          const errData = await response.json();
+          if (errData && errData.error) serverErr = errData.error;
+        } catch (_) {
+          // Response was not JSON
+        }
+        throw new Error(serverErr);
+      }
+
       const data = await response.json();
-      setLoading(false);
 
       if (data.error) {
-        alert("Error: " + data.error);
-        return;
+        throw new Error(data.error);
       }
 
       navigate("/result", {
@@ -56,8 +87,18 @@ const response = await fetch("https://workload-burnout.onrender.com/predict", {
       });
 
     } catch (error) {
+      clearTimeout(timeoutId);
+      clearTimeout(wakeTimer);
+
+      if (error.name === "AbortError") {
+        setErrorMessage("Prediction request timed out. The prediction backend service may be waking up from sleep mode. Please try again.");
+      } else {
+        setErrorMessage(
+          error.message || "Prediction service is temporarily unavailable. Please check backend connection and try again."
+        );
+      }
+    } finally {
       setLoading(false);
-      alert("Server not reachable. Make sure Flask is running.");
     }
   };
 
@@ -87,6 +128,7 @@ const response = await fetch("https://workload-burnout.onrender.com/predict", {
                 value={formData.Age}
                 onChange={handleChange}
                 className="form-input"
+                disabled={loading}
                 required
               />
             </div>
@@ -94,13 +136,13 @@ const response = await fetch("https://workload-burnout.onrender.com/predict", {
             <div className="input-group">
               <label className="input-label">Gender</label>
               <select
-  name="Gender"
-  value={formData.Gender}
-  onChange={handleChange}
-  className="form-input form-select"
-  required
->
-
+                name="Gender"
+                value={formData.Gender}
+                onChange={handleChange}
+                className="form-input form-select"
+                disabled={loading}
+                required
+              >
                 <option value="">Select</option>
                 <option value="1">Male</option>
                 <option value="0">Female</option>
@@ -120,6 +162,7 @@ const response = await fetch("https://workload-burnout.onrender.com/predict", {
                 value={formData.WorkingHours}
                 onChange={handleChange}
                 className="form-input"
+                disabled={loading}
                 required
               />
             </div>
@@ -134,6 +177,7 @@ const response = await fetch("https://workload-burnout.onrender.com/predict", {
                 value={formData.SleepHours}
                 onChange={handleChange}
                 className="form-input"
+                disabled={loading}
                 required
               />
             </div>
@@ -151,6 +195,7 @@ const response = await fetch("https://workload-burnout.onrender.com/predict", {
                 value={formData.StressLevel}
                 onChange={handleChange}
                 className="form-input"
+                disabled={loading}
                 required
               />
             </div>
@@ -165,6 +210,7 @@ const response = await fetch("https://workload-burnout.onrender.com/predict", {
                 value={formData.WorkPressure}
                 onChange={handleChange}
                 className="form-input"
+                disabled={loading}
                 required
               />
             </div>
@@ -182,6 +228,7 @@ const response = await fetch("https://workload-burnout.onrender.com/predict", {
                 value={formData.MeetingsPerDay}
                 onChange={handleChange}
                 className="form-input"
+                disabled={loading}
                 required
               />
             </div>
@@ -196,6 +243,7 @@ const response = await fetch("https://workload-burnout.onrender.com/predict", {
                 value={formData.ExperienceYears}
                 onChange={handleChange}
                 className="form-input"
+                disabled={loading}
                 required
               />
             </div>
@@ -205,14 +253,14 @@ const response = await fetch("https://workload-burnout.onrender.com/predict", {
           <div className="input-row">
             <div className="input-group full-width">
               <label className="input-label">Remote Work?</label>
-<select
-  name="Remote"
-  value={formData.Remote}
-  onChange={handleChange}
-  className="form-input form-select"
-  required
->
-
+              <select
+                name="Remote"
+                value={formData.Remote}
+                onChange={handleChange}
+                className="form-input form-select"
+                disabled={loading}
+                required
+              >
                 <option value="">Select</option>
                 <option value="1">Yes</option>
                 <option value="0">No</option>
@@ -220,15 +268,28 @@ const response = await fetch("https://workload-burnout.onrender.com/predict", {
             </div>
           </div>
 
-          <button type="submit" className="neon-button">
-            🚀 Run ML Prediction
+          <button type="submit" className="neon-button" disabled={loading}>
+            {loading ? "⏳ Predicting..." : "🚀 Run ML Prediction"}
           </button>
         </form>
 
         {loading && (
           <div className="loading">
             <div className="loader-ring"></div>
-            <p>🧠 Processing with ML Model...</p>
+            <p>
+              {loadingStatus === "waking"
+                ? "⚡ Starting prediction service (Render cold start)... please wait."
+                : "🧠 Processing with ML Model..."}
+            </p>
+          </div>
+        )}
+
+        {errorMessage && (
+          <div className="error-banner">
+            <p className="error-text">⚠️ {errorMessage}</p>
+            <button className="retry-btn" onClick={handleSubmit}>
+              🔄 Try Again
+            </button>
           </div>
         )}
       </div>
@@ -237,3 +298,4 @@ const response = await fetch("https://workload-burnout.onrender.com/predict", {
 }
 
 export default BurnoutForm;
+
